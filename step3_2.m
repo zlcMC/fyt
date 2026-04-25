@@ -489,3 +489,152 @@ function V = fuelCellModel(x, I, T, Pair, PH2, A, l)
         V = nan;
     end
 end
+%% ==================== 5. Journal-quality visualization and data saving ====================
+out_dir = 'results_step3';
+if ~exist(out_dir, 'dir')
+    mkdir(out_dir);
+end
+
+set(groot, 'defaultAxesFontName', 'Times New Roman');
+set(groot, 'defaultTextFontName', 'Times New Roman');
+set(groot, 'defaultAxesFontSize', 11);
+set(groot, 'defaultLineLineWidth', 1.5);
+
+t = (1:N_windows)';
+
+rmse_v_prior = sqrt(mean((V_test - V_prior_history).^2, 'omitnan'));
+rmse_v_post  = sqrt(mean((V_test - V_post_history).^2, 'omitnan'));
+mae_v_prior  = mean(abs(V_test - V_prior_history), 'omitnan');
+mae_v_post   = mean(abs(V_test - V_post_history), 'omitnan');
+
+%% -------- Fig. STEP3-1: Overall tracking performance --------
+fig1 = figure('Color','w','Position',[80 60 1100 800]);
+tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
+
+nexttile;
+plot(t, V_test, 'k-', 'LineWidth', 1.2); hold on;
+plot(t, V_prior_history, '--', 'Color', [0 0.45 0.74], 'LineWidth', 1.2);
+plot(t, V_post_history, '-', 'Color', [0.85 0.33 0.10], 'LineWidth', 1.5);
+ylabel('Voltage (V)');
+title(sprintf('Voltage tracking under ripple disturbance (Prior RMSE = %.4f V, Posterior RMSE = %.4f V)', rmse_v_prior, rmse_v_post));
+legend({'Measured voltage','TS-LSTM prior','AUKF posterior'}, 'Location','best', 'Box','off');
+grid on; box on; xlim([1 N_windows]);
+
+nexttile;
+plot(t, X_prior_history(:,1), '--', 'Color', [0 0.45 0.74], 'LineWidth', 1.2); hold on;
+plot(t, X_est_history(:,1), '-', 'Color', [0.85 0.33 0.10], 'LineWidth', 1.5);
+ylabel('\lambda');
+title('Estimated fast state');
+legend({'Prior','Posterior'}, 'Location','best', 'Box','off');
+grid on; box on; xlim([1 N_windows]);
+
+nexttile;
+plot(t, X_prior_history(:,2), '--', 'Color', [0.49 0.18 0.56], 'LineWidth', 1.2); hold on;
+plot(t, X_est_history(:,2), 'k-', 'LineWidth', 1.4);
+ylabel('\xi_1');
+xlabel('Time window');
+title('Estimated slow state');
+legend({'Prior','Posterior'}, 'Location','best', 'Box','off');
+grid on; box on; xlim([1 N_windows]);
+
+exportgraphics(fig1, fullfile(out_dir, 'Fig_STEP3_Main_Tracking.png'), 'Resolution', 600);
+exportgraphics(fig1, fullfile(out_dir, 'Fig_STEP3_Main_Tracking.pdf'), 'ContentType', 'vector');
+
+%% -------- Fig. STEP3-2: Adaptive filtering mechanism --------
+fig2 = figure('Color','w','Position',[100 80 1100 700]);
+tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
+
+nexttile;
+plot(t, abs(innovation_history), 'Color', [0 0.45 0.74], 'LineWidth', 1.2);
+ylabel('|Innovation| (V)');
+title('Innovation magnitude');
+grid on; box on; xlim([1 N_windows]);
+
+nexttile;
+plot(t, R_adaptive_history, 'Color', [0.47 0.67 0.19], 'LineWidth', 1.5);
+ylabel('Adaptive R');
+title('Adaptive measurement-noise covariance');
+grid on; box on; xlim([1 N_windows]);
+
+nexttile;
+plot(t, innovation_ratio_hist, 'Color', [0.85 0.33 0.10], 'LineWidth', 1.2); hold on;
+yline(1, 'k--', 'Threshold = 1', 'LineWidth', 1.0, 'LabelHorizontalAlignment', 'left');
+ylabel('Ratio');
+xlabel('Time window');
+title('Normalized innovation ratio');
+grid on; box on; xlim([1 N_windows]);
+
+exportgraphics(fig2, fullfile(out_dir, 'Fig_STEP3_Adaptive_Mechanism.png'), 'Resolution', 600);
+exportgraphics(fig2, fullfile(out_dir, 'Fig_STEP3_Adaptive_Mechanism.pdf'), 'ContentType', 'vector');
+
+%% -------- Fig. STEP3-3: Error distribution --------
+err_prior = V_prior_history - V_test;
+err_post  = V_post_history - V_test;
+
+fig3 = figure('Color','w','Position',[100 80 1000 420]);
+tiledlayout(1,2,'TileSpacing','compact','Padding','compact');
+
+nexttile;
+histogram(err_prior, 50, 'Normalization', 'pdf', 'FaceColor', [0 0.45 0.74], 'FaceAlpha', 0.45, 'EdgeColor', 'none'); hold on;
+histogram(err_post,  50, 'Normalization', 'pdf', 'FaceColor', [0.85 0.33 0.10], 'FaceAlpha', 0.45, 'EdgeColor', 'none');
+xlabel('Voltage error (V)');
+ylabel('PDF');
+title('Error distribution');
+legend({'Prior error','Posterior error'}, 'Location','best', 'Box','off');
+grid on; box on;
+
+nexttile;
+boxplot([abs(err_prior), abs(err_post)], 'Labels', {'Prior','Posterior'});
+ylabel('Absolute voltage error (V)');
+title('Absolute error comparison');
+grid on; box on;
+
+exportgraphics(fig3, fullfile(out_dir, 'Fig_STEP3_Error_Statistics.png'), 'Resolution', 600);
+exportgraphics(fig3, fullfile(out_dir, 'Fig_STEP3_Error_Statistics.pdf'), 'ContentType', 'vector');
+
+%% -------- Fig. STEP3-4: Zoomed-in transient windows --------
+% Pick several representative regions manually or automatically
+zoom_sets = {
+    max(1,1100-50):min(N_windows,1100+50), ...
+    max(1,1420-50):min(N_windows,1420+50), ...
+    max(1,1750-50):min(N_windows,1750+50)
+};
+
+fig4 = figure('Color','w','Position',[80 60 1200 900]);
+tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
+
+for i = 1:3
+    zr = zoom_sets{i};
+    nexttile;
+    plot(zr, V_test(zr), 'k-', 'LineWidth', 1.2); hold on;
+    plot(zr, V_prior_history(zr), '--', 'Color', [0 0.45 0.74], 'LineWidth', 1.2);
+    plot(zr, V_post_history(zr), '-', 'Color', [0.85 0.33 0.10], 'LineWidth', 1.5);
+    ylabel('Voltage (V)');
+    title(sprintf('Zoomed-in transient region %d', i));
+    legend({'Measured','Prior','Posterior'}, 'Location','best', 'Box','off');
+    grid on; box on;
+end
+xlabel('Time window');
+
+exportgraphics(fig4, fullfile(out_dir, 'Fig_STEP3_Zoomed_Transients.png'), 'Resolution', 600);
+exportgraphics(fig4, fullfile(out_dir, 'Fig_STEP3_Zoomed_Transients.pdf'), 'ContentType', 'vector');
+
+%% -------- Save structured data for paper --------
+STEP3_RESULTS = struct();
+STEP3_RESULTS.time_window = t;
+STEP3_RESULTS.V_measured  = V_test;
+STEP3_RESULTS.V_prior     = V_prior_history;
+STEP3_RESULTS.V_post      = V_post_history;
+STEP3_RESULTS.lambda_prior = X_prior_history(:,1);
+STEP3_RESULTS.lambda_post  = X_est_history(:,1);
+STEP3_RESULTS.xi1_prior    = X_prior_history(:,2);
+STEP3_RESULTS.xi1_post     = X_est_history(:,2);
+STEP3_RESULTS.innovation   = innovation_history;
+STEP3_RESULTS.adaptive_R   = R_adaptive_history;
+STEP3_RESULTS.innovation_ratio = innovation_ratio_hist;
+STEP3_RESULTS.rmse_v_prior = rmse_v_prior;
+STEP3_RESULTS.rmse_v_post  = rmse_v_post;
+STEP3_RESULTS.mae_v_prior  = mae_v_prior;
+STEP3_RESULTS.mae_v_post   = mae_v_post;
+
+save(fullfile(out_dir, 'STEP3_RESULTS_FOR_PAPER.mat'), 'STEP3_RESULTS');
