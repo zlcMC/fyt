@@ -217,6 +217,232 @@ fprintf('xi_1   (慢变): RMSE = %.4f, R2 = %.4f\n', rmse_xi1, r2_xi1);
 save('FC1_TS_LSTM_Attention_Model.mat', 'ts_lstm_net', 'x_mean', 'x_std', 'y_mean', 'y_std');
 disp('>>> 模型已存入 FC1_TS_LSTM_Attention_Model.mat');
 
+%% ==================== 7. Journal-quality figures and paper-ready saving ====================
+disp('7. 生成英文期刊风格图像并保存结果...');
+
+out_dir = 'results_step2';
+if ~exist(out_dir, 'dir')
+    mkdir(out_dir);
+end
+
+% ---------- Common style ----------
+set(groot, 'defaultAxesFontName', 'Times New Roman');
+set(groot, 'defaultTextFontName', 'Times New Roman');
+set(groot, 'defaultAxesFontSize', 11);
+set(groot, 'defaultLineLineWidth', 1.5);
+
+% ---------- Additional metrics ----------
+mae_lambda = mean(abs(YTrue(:,1) - YPred(:,1)));
+mae_xi1    = mean(abs(YTrue(:,2) - YPred(:,2)));
+
+err_lambda = YPred(:,1) - YTrue(:,1);
+err_xi1    = YPred(:,2) - YTrue(:,2);
+
+% Optional max absolute error
+maxae_lambda = max(abs(err_lambda));
+maxae_xi1    = max(abs(err_xi1));
+
+% ---------- Figure 1: Test-set prediction curves ----------
+fig1 = figure('Color','w','Position',[100 80 1100 820]);
+tiledlayout(2,1,'TileSpacing','compact','Padding','compact');
+
+nexttile;
+plot(YTrue(:,1), 'k-', 'LineWidth', 1.3); hold on;
+plot(YPred(:,1), '--', 'Color', [0 0.45 0.74], 'LineWidth', 1.4);
+ylabel('\lambda');
+title(sprintf('Test-set prediction of fast state \\lambda (RMSE = %.4f, MAE = %.4f, R^2 = %.4f)', ...
+    rmse_lambda, mae_lambda, r2_lambda));
+legend({'Reference pseudo-label','Predicted'}, 'Location','best', 'Box','off');
+grid on; box on;
+xlim([1 size(YTrue,1)]);
+
+nexttile;
+plot(YTrue(:,2), 'k-', 'LineWidth', 1.3); hold on;
+plot(YPred(:,2), '--', 'Color', [0.49 0.18 0.56], 'LineWidth', 1.4);
+ylabel('\xi_1');
+xlabel('Test sample index');
+title(sprintf('Test-set prediction of slow state \\xi_1 (RMSE = %.4f, MAE = %.4f, R^2 = %.4f)', ...
+    rmse_xi1, mae_xi1, r2_xi1));
+legend({'Reference pseudo-label','Predicted'}, 'Location','best', 'Box','off');
+grid on; box on;
+xlim([1 size(YTrue,1)]);
+
+exportgraphics(fig1, fullfile(out_dir, 'Fig_STEP2_Test_Prediction.png'), 'Resolution', 600);
+exportgraphics(fig1, fullfile(out_dir, 'Fig_STEP2_Test_Prediction.pdf'), 'ContentType', 'vector');
+
+% ---------- Figure 2: Parity plots ----------
+fig2 = figure('Color','w','Position',[120 100 1000 430]);
+tiledlayout(1,2,'TileSpacing','compact','Padding','compact');
+
+nexttile;
+scatter(YTrue(:,1), YPred(:,1), 18, 'filled', ...
+    'MarkerFaceColor', [0 0.45 0.74], ...
+    'MarkerFaceAlpha', 0.40); hold on;
+mn1 = min([YTrue(:,1); YPred(:,1)]);
+mx1 = max([YTrue(:,1); YPred(:,1)]);
+plot([mn1 mx1], [mn1 mx1], 'k--', 'LineWidth', 1.2);
+xlabel('Reference \lambda');
+ylabel('Predicted \lambda');
+title(sprintf('Parity plot for \\lambda (R^2 = %.4f)', r2_lambda));
+grid on; box on; axis square;
+
+nexttile;
+scatter(YTrue(:,2), YPred(:,2), 18, 'filled', ...
+    'MarkerFaceColor', [0.49 0.18 0.56], ...
+    'MarkerFaceAlpha', 0.40); hold on;
+mn2 = min([YTrue(:,2); YPred(:,2)]);
+mx2 = max([YTrue(:,2); YPred(:,2)]);
+plot([mn2 mx2], [mn2 mx2], 'k--', 'LineWidth', 1.2);
+xlabel('Reference \xi_1');
+ylabel('Predicted \xi_1');
+title(sprintf('Parity plot for \\xi_1 (R^2 = %.4f)', r2_xi1));
+grid on; box on; axis square;
+
+exportgraphics(fig2, fullfile(out_dir, 'Fig_STEP2_Parity.png'), 'Resolution', 600);
+exportgraphics(fig2, fullfile(out_dir, 'Fig_STEP2_Parity.pdf'), 'ContentType', 'vector');
+
+% ---------- Figure 3: Error distribution ----------
+fig3 = figure('Color','w','Position',[120 100 1000 430]);
+tiledlayout(1,2,'TileSpacing','compact','Padding','compact');
+
+nexttile;
+histogram(err_lambda, 50, 'Normalization', 'pdf', ...
+    'FaceColor', [0 0.45 0.74], 'FaceAlpha', 0.45, 'EdgeColor', 'none');
+xlabel('Prediction error of \lambda');
+ylabel('PDF');
+title('Error distribution of fast state');
+grid on; box on;
+
+nexttile;
+histogram(err_xi1, 50, 'Normalization', 'pdf', ...
+    'FaceColor', [0.49 0.18 0.56], 'FaceAlpha', 0.45, 'EdgeColor', 'none');
+xlabel('Prediction error of \xi_1');
+ylabel('PDF');
+title('Error distribution of slow state');
+grid on; box on;
+
+exportgraphics(fig3, fullfile(out_dir, 'Fig_STEP2_Error_Distribution.png'), 'Resolution', 600);
+exportgraphics(fig3, fullfile(out_dir, 'Fig_STEP2_Error_Distribution.pdf'), 'ContentType', 'vector');
+
+% ---------- Figure 4: Training history ----------
+% info.TrainingLoss 和 info.ValidationLoss 通常可以直接用
+% ---------- Figure 4: Training history (强效修复版) ----------
+fig4 = figure('Color','w','Position',[120 100 900 380]);
+
+% 优先尝试画 RMSE
+if isfield(info, 'TrainingRMSE')
+    plot(info.TrainingRMSE, 'Color', [0 0.45 0.74], 'LineWidth', 1.5); hold on;
+    ylabel('RMSE');
+    
+    if isfield(info, 'ValidationRMSE') && ~isempty(info.ValidationRMSE)
+        val_rmse = info.ValidationRMSE;
+        % 【关键修复】：把非 NaN 的点抽出来，强制连线并画出圆点
+        val_idx = find(~isnan(val_rmse)); 
+        plot(val_idx, val_rmse(val_idx), '-o', 'Color', [0.85 0.33 0.10], ...
+            'LineWidth', 1.5, 'MarkerFaceColor', [0.85 0.33 0.10]);
+        legend({'Training RMSE','Validation RMSE'}, 'Location', 'northeast', 'Box', 'off');
+    else
+        legend({'Training RMSE'}, 'Location', 'northeast', 'Box', 'off');
+    end
+else
+    % 如果没有 RMSE，退化为画 Loss
+    plot(info.TrainingLoss, 'Color', [0 0.45 0.74], 'LineWidth', 1.5); hold on;
+    ylabel('Loss');
+    
+    if isfield(info, 'ValidationLoss') && ~isempty(info.ValidationLoss)
+        val_loss = info.ValidationLoss;
+        % 【关键修复】：提取非 NaN 点
+        val_idx = find(~isnan(val_loss));
+        plot(val_idx, val_loss(val_idx), '-o', 'Color', [0.85 0.33 0.10], ...
+            'LineWidth', 1.5, 'MarkerFaceColor', [0.85 0.33 0.10]);
+        legend({'Training loss','Validation loss'}, 'Location', 'northeast', 'Box', 'off');
+    else
+        legend({'Training loss'}, 'Location', 'northeast', 'Box', 'off');
+    end
+end
+
+xlabel('Iteration');
+title('Training history of the attention-enhanced TS-LSTM');
+grid on; box on;
+exportgraphics(fig4, fullfile(out_dir, 'Fig_STEP2_Training_History.png'), 'Resolution', 600);
+exportgraphics(fig4, fullfile(out_dir, 'Fig_STEP2_Training_History.pdf'), 'ContentType', 'vector');
+
+% ---------- Figure 5: Zoomed local comparison (optional but recommended) ----------
+% 选择误差较大的局部区域，展示网络对局部动态的跟踪能力
+[~, idx_err_lambda] = max(movmean(abs(err_lambda), 30));
+zoom_radius = 80;
+zoom_range = max(1, idx_err_lambda - zoom_radius) : min(length(err_lambda), idx_err_lambda + zoom_radius);
+
+fig5 = figure('Color','w','Position',[120 100 1000 500]);
+tiledlayout(2,1,'TileSpacing','compact','Padding','compact');
+
+nexttile;
+plot(zoom_range, YTrue(zoom_range,1), 'k-', 'LineWidth', 1.3); hold on;
+plot(zoom_range, YPred(zoom_range,1), '--', 'Color', [0 0.45 0.74], 'LineWidth', 1.4);
+ylabel('\lambda');
+title('Zoomed comparison for fast state');
+legend({'Reference','Predicted'}, 'Location','best', 'Box','off');
+grid on; box on;
+
+nexttile;
+plot(zoom_range, YTrue(zoom_range,2), 'k-', 'LineWidth', 1.3); hold on;
+plot(zoom_range, YPred(zoom_range,2), '--', 'Color', [0.49 0.18 0.56], 'LineWidth', 1.4);
+ylabel('\xi_1');
+xlabel('Test sample index');
+title('Zoomed comparison for slow state');
+legend({'Reference','Predicted'}, 'Location','best', 'Box','off');
+grid on; box on;
+
+exportgraphics(fig5, fullfile(out_dir, 'Fig_STEP2_Zoomed_Comparison.png'), 'Resolution', 600);
+exportgraphics(fig5, fullfile(out_dir, 'Fig_STEP2_Zoomed_Comparison.pdf'), 'ContentType', 'vector');
+
+% ---------- Save metrics table ----------
+STEP2_METRICS = table();
+STEP2_METRICS.State = {'lambda'; 'xi1'};
+STEP2_METRICS.RMSE  = [rmse_lambda; rmse_xi1];
+STEP2_METRICS.MAE   = [mae_lambda; mae_xi1];
+STEP2_METRICS.R2    = [r2_lambda; r2_xi1];
+STEP2_METRICS.MaxAE = [maxae_lambda; maxae_xi1];
+
+writetable(STEP2_METRICS, fullfile(out_dir, 'Table_STEP2_Test_Metrics.csv'));
+
+% ---------- Save paper-ready result struct ----------
+STEP2_RESULTS = struct();
+STEP2_RESULTS.YTrue = YTrue;
+STEP2_RESULTS.YPred = YPred;
+STEP2_RESULTS.err_lambda = err_lambda;
+STEP2_RESULTS.err_xi1    = err_xi1;
+
+STEP2_RESULTS.rmse_lambda = rmse_lambda;
+STEP2_RESULTS.rmse_xi1    = rmse_xi1;
+STEP2_RESULTS.mae_lambda  = mae_lambda;
+STEP2_RESULTS.mae_xi1     = mae_xi1;
+STEP2_RESULTS.r2_lambda   = r2_lambda;
+STEP2_RESULTS.r2_xi1      = r2_xi1;
+STEP2_RESULTS.maxae_lambda = maxae_lambda;
+STEP2_RESULTS.maxae_xi1    = maxae_xi1;
+
+STEP2_RESULTS.seq_len = seq_len;
+STEP2_RESULTS.stride  = stride;
+STEP2_RESULTS.val_ratio = val_ratio;
+STEP2_RESULTS.test_ratio = test_ratio;
+
+STEP2_RESULTS.XTrain_count = numel(XTrain);
+STEP2_RESULTS.XVal_count   = numel(XVal);
+STEP2_RESULTS.XTest_count  = numel(XTest);
+
+STEP2_RESULTS.x_mean = x_mean;
+STEP2_RESULTS.x_std  = x_std;
+STEP2_RESULTS.y_mean = y_mean;
+STEP2_RESULTS.y_std  = y_std;
+
+STEP2_RESULTS.info = info;
+STEP2_RESULTS.zoom_range = zoom_range;
+
+save(fullfile(out_dir, 'STEP2_RESULTS_FOR_PAPER.mat'), 'STEP2_RESULTS');
+
+disp('>>> STEP2 journal figures and paper-ready results have been saved.');
+
 %% ==================== 附录：滑窗样本构造函数 ====================
 function [XCell, YMat] = buildSequenceDataset(X, Y, seq_len, stride)
     % 作用：把连续的一维时序数据，切成一段一段具有长度 seq_len 的序列片段

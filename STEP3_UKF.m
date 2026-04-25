@@ -105,7 +105,6 @@ T_test    = zeros(N_windows,1);
 Pair_test = zeros(N_windows,1);
 PH2_test  = zeros(N_windows,1);
 V_test    = zeros(N_windows,1);
-
 for i = 1:N_windows
     idx = (i-1)*window_size+1 : i*window_size;
     I_test(i)    = mean(I_raw(idx));
@@ -123,6 +122,7 @@ X_test_norm = (X_test_raw - x_mean_rep) ./ x_std_rep;
 
 %% ==================== 3. TS-LSTM prior + UKF posterior ====================
 disp('3. Running TS-LSTM + UKF...');
+total_inference_tic = tic;
 x_est = [10.0; -0.85];
 P_cov = diag([0.08, 0.008]);
 Q_process = diag([5e-4, 5e-6]);
@@ -168,8 +168,9 @@ y_pred_all = y_pred_all_norm .* y_std_rep + y_mean_rep;
 
 y_pred_all(:,1) = min(max(y_pred_all(:,1), 3.0), 14.0);
 y_pred_all(:,2) = min(max(y_pred_all(:,2), -1.5), -0.5);
-
+step_time_history = zeros(N_windows,1);
 for k = 1:N_windows
+    t_step = tic;
     if k < seq_len
         x_prior = x_est;
     else
@@ -236,7 +237,18 @@ for k = 1:N_windows
     if ~isfinite(V_post_history(k)) || abs(V_post_history(k)) > 5
         V_post_history(k) = z_pred;
     end
+    step_time_history(k) = toc(t_step);
 end
+total_inference_time = toc(total_inference_tic);
+avg_step_time = mean(step_time_history);
+max_step_time = max(step_time_history);
+min_step_time = min(step_time_history);
+
+fprintf('\n=== Timing statistics (TS-LSTM + UKF) ===\n');
+fprintf('Total inference time: %.6f s\n', total_inference_time);
+fprintf('Average filtering step time: %.6f ms\n', avg_step_time*1000);
+fprintf('Max filtering step time: %.6f ms\n', max_step_time*1000);
+fprintf('Min filtering step time: %.6f ms\n', min_step_time*1000);
 
 %% ==================== 4. Metrics and saving ====================
 rmse_v_prior = sqrt(mean((V_test - V_prior_history).^2, 'omitnan'));
@@ -272,6 +284,11 @@ RESULT.maxae_v_prior = maxae_v_prior;
 RESULT.maxae_v_post  = maxae_v_post;
 RESULT.innovation_history = innovation_history;
 RESULT.R_history = R_history;
+RESULT.step_time_history = step_time_history;
+RESULT.total_inference_time = total_inference_time;
+RESULT.avg_step_time = avg_step_time;
+RESULT.max_step_time = max_step_time;
+RESULT.min_step_time = min_step_time;
 
 save(fullfile(out_dir, 'RESULT_TS_LSTM_UKF_FC2.mat'), 'RESULT');
 
@@ -535,6 +552,11 @@ STEP3_UKF_RESULTS.mae_v_prior  = mae_v_prior;
 STEP3_UKF_RESULTS.mae_v_post   = mae_v_post;
 STEP3_UKF_RESULTS.maxae_v_prior = maxae_v_prior;
 STEP3_UKF_RESULTS.maxae_v_post  = maxae_v_post;
+STEP3_UKF_RESULTS.step_time_history = step_time_history;
+STEP3_UKF_RESULTS.total_inference_time = total_inference_time;
+STEP3_UKF_RESULTS.avg_step_time = avg_step_time;
+STEP3_UKF_RESULTS.max_step_time = max_step_time;
+STEP3_UKF_RESULTS.min_step_time = min_step_time;
 
 save(fullfile(out_dir, 'STEP3_UKF_RESULTS_FOR_PAPER.mat'), 'STEP3_UKF_RESULTS');
 

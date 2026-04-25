@@ -228,71 +228,124 @@ fprintf('\n[归一化统计量]\n');
 disp(struct2table(norm_stats, 'AsArray', true));
 
 %% ==================== 6. 可视化 ====================
-% 计算拟合残差
+%% ==================== 6. Visualization for Journal Figures ====================
 res = V_fit - V_actual_down;
+rmse_fit = sqrt(mean(res.^2));
+mae_fit  = mean(abs(res));
 
-figure('Name','FC1 伪标签 v3.1','Position',[50 40 1200 950]);
+out_dir = 'results_step1';
+if ~exist(out_dir, 'dir')
+    mkdir(out_dir);
+end
 
-% (1) 实际电压 vs 拟合电压
-subplot(4,2,[1 2]);
-plot(V_actual_down,'k-','LineWidth',1.5); hold on;
-plot(V_fit,'r--','LineWidth',1.0);
-title(sprintf('电压拟合 (RMSE = %.3f mV)', 1000*rms(res)));
-ylabel('Cell V');
-legend('实际测量','反推拟合','Location','best');
-grid on;
+% ---------- Common figure style ----------
+set(groot, 'defaultAxesFontName', 'Times New Roman');
+set(groot, 'defaultTextFontName', 'Times New Roman');
+set(groot, 'defaultAxesFontSize', 11);
+set(groot, 'defaultLineLineWidth', 1.5);
 
-% (2) lambda 序列
-subplot(4,2,[3 4]);
-plot(lambda_label,'b-','LineWidth',1.0);
-title('快变 \lambda (保留中频水热动态响应)');
+t = (1:N_windows)';
+
+%% -------- Figure S1 / Main Fig. 1: Pseudo-label construction overview --------
+fig1 = figure('Color','w','Position',[100 80 1100 850]);
+
+tiledlayout(3,1,'TileSpacing','compact','Padding','compact');
+
+% (a) Measured vs reconstructed voltage
+nexttile;
+plot(t, V_actual_down, 'k-', 'LineWidth', 1.4); hold on;
+plot(t, V_fit, 'r--', 'LineWidth', 1.4);
+ylabel('Voltage (V)');
+title(sprintf('Pseudo-label construction: voltage reconstruction (RMSE = %.4f V, MAE = %.4f V)', rmse_fit, mae_fit));
+legend({'Measured voltage','Reconstructed voltage'}, 'Location','best', 'Box','off');
+grid on; box on;
+xlim([1 N_windows]);
+
+% (b) Fast pseudo-label lambda
+nexttile;
+plot(t, lambda_label, 'Color', [0 0.45 0.74], 'LineWidth', 1.5);
 ylabel('\lambda');
-ylim([3 14]);
-grid on;
+title('Extracted fast pseudo-label: membrane hydration state');
+grid on; box on;
+xlim([1 N_windows]);
+ylim([max(3,min(lambda_label)-0.2), min(14,max(lambda_label)+0.2)]);
 
-% (3) xi1 序列
-subplot(4,2,[5 6]);
-plot(xi1_label,'m-','LineWidth',1.8);
-title('慢变 \xi_1 (S-G平滑，允许刻画电堆可逆恢复特征)');
+% (c) Slow pseudo-label xi1
+nexttile;
+plot(t, xi1_label, 'Color', [0.49 0.18 0.56], 'LineWidth', 1.5);
 ylabel('\xi_1');
-grid on;
+xlabel('Time window');
+title('Extracted slow pseudo-label: degradation-related activation parameter');
+grid on; box on;
+xlim([1 N_windows]);
 
-% ---- 诊断子图：lambda 与 J 局部对比 ----
-% 找出电流密度变化最大的时刻
+exportgraphics(fig1, fullfile(out_dir, 'Fig_STEP1_Pseudolabel_Overview.png'), 'Resolution', 600);
+exportgraphics(fig1, fullfile(out_dir, 'Fig_STEP1_Pseudolabel_Overview.pdf'), 'ContentType', 'vector');
+
+%% -------- Figure S2 / Optional Main Fig.: Local dynamic validation --------
 dJ = abs(diff(J_down));
 [~, k_jump] = max(dJ);
+zoom_range = max(1,k_jump-120) : min(N_windows,k_jump+120);
+tz = zoom_range(:);
 
-% 截取该处附近局部区间
-zoom_range = max(1,k_jump-100) : min(N_windows, k_jump+100);
-
-% (4) lambda 与 J 的局部联动图
-subplot(4,2,7);
+fig2 = figure('Color','w','Position',[120 100 1100 500]);
 yyaxis left;
-plot(zoom_range, lambda_label(zoom_range), 'b-', 'LineWidth',1.4);
+plot(tz, lambda_label(zoom_range), '-', 'Color', [0 0.45 0.74], 'LineWidth', 1.8);
 ylabel('\lambda');
 
 yyaxis right;
-plot(zoom_range, J_down(zoom_range), 'k-', 'LineWidth',1.0);
-ylabel('J (A/cm^2)');
+plot(tz, J_down(zoom_range), '-', 'Color', [0.1 0.1 0.1], 'LineWidth', 1.3);
+ylabel('Current density (A cm^{-2})');
 
-title(sprintf('诊断: \\lambda vs J 局部动态响应 (窗口 k≈%d)', k_jump));
-xlabel('Time Window');
-grid on;
+xlabel('Time window');
+title(sprintf('Local dynamic consistency between extracted \\lambda and current density near a load transition (k \\approx %d)', k_jump));
+grid on; box on;
 
-% (5) 拟合残差序列
-subplot(4,2,8);
-plot(res*1000,'Color',[0.3 0.3 0.3]);
-title('拟合残差序列 V_{fit}-V_{actual} (mV)');
-xlabel('Time Window');
-ylabel('Error (mV)');
-grid on;
+exportgraphics(fig2, fullfile(out_dir, 'Fig_STEP1_Local_Dynamic_Validation.png'), 'Resolution', 600);
+exportgraphics(fig2, fullfile(out_dir, 'Fig_STEP1_Local_Dynamic_Validation.pdf'), 'ContentType', 'vector');
 
-%% 保存结果
+%% -------- Figure S3 / Supplementary: residual sequence --------
+fig3 = figure('Color','w','Position',[120 100 1100 350]);
+plot(t, res*1000, 'Color', [0.35 0.35 0.35], 'LineWidth', 1.2);
+xlabel('Time window');
+ylabel('Residual (mV)');
+title('Voltage reconstruction residual sequence');
+grid on; box on;
+xlim([1 N_windows]);
+
+exportgraphics(fig3, fullfile(out_dir, 'Fig_STEP1_Residual.png'), 'Resolution', 600);
+exportgraphics(fig3, fullfile(out_dir, 'Fig_STEP1_Residual.pdf'), 'ContentType', 'vector');
+
+%% -------- Save structured data for paper / step2 --------
+STEP1_RESULTS = struct();
+STEP1_RESULTS.time_window   = t;
+STEP1_RESULTS.V_measured    = V_actual_down;
+STEP1_RESULTS.V_reconstructed = V_fit;
+STEP1_RESULTS.lambda_label  = lambda_label;
+STEP1_RESULTS.xi1_label     = xi1_label;
+STEP1_RESULTS.J_down        = J_down;
+STEP1_RESULTS.I_down        = I_down;
+STEP1_RESULTS.T_K_down      = T_K_down;
+STEP1_RESULTS.Pair_down     = Pair_down;
+STEP1_RESULTS.PH2_down      = PH2_down;
+STEP1_RESULTS.residual      = res;
+STEP1_RESULTS.rmse_fit      = rmse_fit;
+STEP1_RESULTS.mae_fit       = mae_fit;
+STEP1_RESULTS.norm_stats    = norm_stats;
+STEP1_RESULTS.n_cells       = n_cells;
+STEP1_RESULTS.A_area        = A_area;
+STEP1_RESULTS.l_thickness   = l_thickness;
+STEP1_RESULTS.k_jump        = k_jump;
+STEP1_RESULTS.zoom_range    = zoom_range;
+
+save(fullfile(out_dir, 'STEP1_RESULTS_FOR_PAPER.mat'), 'STEP1_RESULTS');
+
+%% -------- Original save for downstream training --------
 save('FC1_Full_PseudoLabels.mat', ...
      'I_down','J_down','T_K_down','Pair_down','PH2_down','V_actual_down', ...
      'lambda_label','xi1_label','V_fit','norm_stats','n_cells','A_area','l_thickness');
 
-disp('>>> v3.1 伪标签 + 归一化统计量已保存：FC1_Full_PseudoLabels.mat');
+disp('>>> STEP1 results, figures, and pseudo-label file have been saved.');
 
 %% ==================== 附录：代价函数 ====================
 function err = voltage_error_single(lambda, xi_1, I, J, T, P_H2, P_air, V_actual, A, l)
