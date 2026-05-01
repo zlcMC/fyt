@@ -1,4 +1,4 @@
-一．Introduction
+一．Introduction 引言
 1.1 PEMFC 动态运行监测的重要性
 要写什么
 * PEMFC 在交通、电站、分布式能源等场景中应用广。
@@ -33,7 +33,7 @@
 重点：
 * 兼顾物理一致性和数据适应能力
 * 是你文章主要归属类别
-4. 滤波估计方法
+1. 4. 滤波估计方法Filtering-based online estimation methods
 优点：
 * 能利用实时测量反馈。
 * 适合在线状态估计。
@@ -64,6 +64,22 @@ Contribution 3：动态工况与实时性验证
 在 FC2 动态 ripple 工况下，通过 prior/posterior 对比、UKF/AUKF 对比、消融实验和 CPU 计算耗时分析，验证方法的精度、鲁棒性与实时运行潜力。
 二．Problem Formulation and Overall Framework 问题定义与整体框架
 2.1 Estimation objective 估计目标
+2.1.1 PEMFC physics-based voltage model PEMFC 机理端电压模型
+要写什么
+这里写你的端电压模型。
+总体形式：
+V=ENernst?Vact?Vohm?Vconc
+分别解释：
+* (E_{Nernst})：开路电压/热力学电势
+* (V_{act})：活化损失
+* (V_{ohm})：欧姆损失
+* (V_{conc})：浓差损失
+其中你的状态进入模型的位置：
+* (\lambda) 进入欧姆损失，影响膜电阻。
+* (\xi_1) 进入活化损失，刻画活化极化相关变化。
+重点强调
+这部分是物理一致性的来源。
+2.1.2 Physical significance and estimation rationale of the target variables估计变量的物理意义与研究价值 
 （带有PEMFC的工作机制，这几个变量代表的意义，先讲述其内部机理，再讲这几个变量很重要，估计他们有什么意义）要写什么
 你的估计对象不是单一电压，而是：
 * 端电压：Vk
@@ -75,7 +91,7 @@ Contribution 3：动态工况与实时性验证
 这里不要说 (\xi_1) 是严格老化状态。
 应该说：
 (\xi_1) is an empirical activation-loss-related internal state, whose evolution may be associated with activation polarization changes and degradation-related performance variation.
-2.2 Overall framework 整体流程
+2.2 Overall framework 所提方法的整体框架
 这一节建议放一张总框图。大概介绍一下流程
 输入工况包括：
 * 电流 (I)
@@ -101,7 +117,7 @@ o (\xi_1)
 o 残差/创新序列
 o 在线监测指标
 三．Data Processing and Pseudo-Label Construction 数据处理与伪标签构建
-3.1 FC1/FC2 数据说明
+3.1 FC1/FC2 dataset description FC1/FC2 数据说明
 要写什么；数据来源（数据集）、特点、怎么用（训练集和测试集）
 * FC1 用于训练或构建模型。
 * FC2 用于跨对象/动态 ripple 测试。
@@ -135,7 +151,7 @@ a physically constrained supervisory signal for learning latent internal states.
 * 伪标签如何与物理模型一致；
 * 伪标签误差如何通过 UKF/AUKF 后验校正进一步修正。
 四．Methodology 方法
-4.1 TS-LSTM prior model
+4.1 TS-LSTM prior model TS-LSTM 先验模型
 要写什么
 介绍 TS-LSTM 的作用，而不是展开过多 LSTM 基础公式。
 重点写
@@ -144,23 +160,7 @@ a physically constrained supervisory signal for learning latent internal states.
 强调
 TS-LSTM 的作用是捕捉动态工况下历史输入对内部状态的影响，为滤波器提供更好的先验，而不是单独替代物理模型。
 
-4.2 PEMFC physics-based voltage model
-要写什么
-这里写你的端电压模型。
-总体形式：
-V=ENernst?Vact?Vohm?Vconc
-分别解释：
-* (E_{Nernst})：开路电压/热力学电势
-* (V_{act})：活化损失
-* (V_{ohm})：欧姆损失
-* (V_{conc})：浓差损失
-其中你的状态进入模型的位置：
-* (\lambda) 进入欧姆损失，影响膜电阻。
-* (\xi_1) 进入活化损失，刻画活化极化相关变化。
-重点强调
-这部分是物理一致性的来源。
-
-4.3 UKF posterior correction
+4.2 UKF posterior correction UKF 后验校正
 要写什么
 写 UKF 如何利用端电压测量修正状态。
 流程包括：
@@ -175,7 +175,7 @@ V=ENernst?Vact?Vohm?Vconc
 * UKF 核心更新只是滤波代数部分。
 * 整体在线 step 包含先验读取、sigma 点、机理模型、修正、后验电压等。
 
-4.4 AUKF adaptive measurement noise update
+4.3 AUKF adaptive measurement noise update  AUKF 自适应测量噪声更新
 要写什么（简写，因为此处只是作为扩展实验）
 介绍 AUKF 相比 UKF 多了什么。
 你的 AUKF 是基于创新序列局部波动调整 (R_k)。
@@ -191,7 +191,7 @@ AUKF 的目的不是一定降低计算时间，而是：
 * 根据测量波动自适应调节滤波器信任度；
 * 减少异常 ripple 对状态估计的影响。
 
-4.5 Constraints and numerical stabilization
+4.4 Constraints and numerical stabilization 约束条件与数值稳定化处理
 这部分是顶刊论文容易忽略但很加分的地方。
 要写什么
 你的代码里有很多工程约束：
@@ -208,7 +208,7 @@ o 超出合理范围时替换。
 不要写成“代码补丁”，要写成：
 To ensure physically plausible and numerically stable online estimation, bound constraints and step-rate constraints are imposed on latent states.
 五．Results and Discussion 结果与讨论
-6.1 Terminal voltage reconstruction performance
+5.1 Terminal voltage reconstruction performance 端电压重构性能
 要放什么图
 图 2：端电压真实值与预测值对比
 包括：
@@ -224,7 +224,7 @@ To ensure physically plausible and numerically stable online estimation, bound c
 对应写法
 Compared with the prior prediction, the posterior voltage reconstructed by the proposed filtering framework exhibits improved agreement with measured voltage, particularly under transient and ripple-affected segments.
 
-6.2 Prior vs posterior error analysis
+5.2 Prior vs posterior error analysis 先验与后验误差分析
 要放什么图
 图 3：误差曲线
 * prior error
@@ -239,7 +239,7 @@ Compared with the prior prediction, the posterior voltage reconstructed by the p
 * MAE/RMSE 是否下降；
 * MaxAE 是否改善。
 
-6.3 Internal state estimation of membrane water content
+5.3 Internal state estimation of membrane water content 膜含水量内部状态估计
 要放什么图
 图 5：(\lambda) 估计轨迹
 包括：
@@ -255,7 +255,7 @@ Compared with the prior prediction, the posterior voltage reconstructed by the p
 要说：
 estimated trajectory, physical plausibility, dynamic consistency.
 
-6.4 Internal state estimation of activation-loss coefficient
+5.4 Internal state estimation of activation-loss coefficient 活化损失系数内部状态估计
 要放什么图
 图 6：(\xi_1) 估计轨迹
 包括：
@@ -269,7 +269,7 @@ estimated trajectory, physical plausibility, dynamic consistency.
 推荐表述
 The estimated (\xi_1) should be interpreted as an activation-loss-related empirical state rather than a direct aging index.
 
-6.5 UKF vs AUKF comparison
+5.5 UKF vs AUKF comparison UKF 与 AUKF 对比分析
 要放什么图
 图 7：UKF 与 AUKF 电压重构对比
 图 8：UKF 与 AUKF 状态轨迹对比
@@ -285,7 +285,7 @@ The estimated (\xi_1) should be interpreted as an activation-loss-related empiri
 推荐说：
 UKF and AUKF exhibit comparable sub-millisecond online latency, indicating that the adaptive noise adjustment does not introduce significant computational burden.
 
-6.6 Ablation study
+5.6 Ablation study 消融实验
 顶刊非常看重消融实验。
 Why hybrid estimation works
 要写什么
@@ -305,7 +305,7 @@ MethodRMSEMAEMaxAETS-LSTM priorPhysics-based modelTS-LSTM + UKFT
 * UKF/AUKF 后验修正带来的提升；
 * AUKF 相对 UKF 在动态扰动下的增益。
 
-6.7 Computational efficiency and real-time feasibility
+5.7 Computational efficiency and real-time feasibility 计算效率与实时可行性分析
 这一节你已经做得比较细，要好好写。
 你已有结果可放表
 指标时间TS-LSTM 等效单窗口推理时间1.786 ms机理模型单步时间0.0095 msUKF 核心更新时间0.0448 msUKF 整体单步在线更新时间0.0699 msAUKF 整体单步在线更新时间0.0580 msUKF 总流程耗时3.816 sAUKF 总流程耗时1.211 s但要注意口径
@@ -323,18 +323,9 @@ t_{\text{TS-LSTM per window}} + t_{\text{online step}} ]
 然后与数据更新周期比较，比如你之前说的 30.2 s：
 1.856?ms?30.2?s
 说明具有实时在线运行潜力。
-七．Discussion 讨论
-7.1 Physical interpretation of estimated states
-写什么
-* (\lambda)：水管理与质子传导状态；
-* (\xi_1)：活化损失相关经验状态；
-* 二者与端电压变化的关系。
-注意
-不要过度声称 (\xi_1) 是 SOH。
-可以写：
-Although (\xi_1) is not a direct health indicator, its evolution may serve as an auxiliary variable for degradation-related performance monitoring.
-
-7.3 Limitations（放在conclusion）
+六．Further Discussion 进一步讨论
+6.1 Monitoring and PHM-enabling implications 运行监测与健康管理意义
+6.2 Limitations 局限性分析 
 顶刊论文主动写限制反而显得成熟。
 可写限制
 1. (\lambda) 和 (\xi_1) 缺少直接传感器真值；
@@ -343,7 +334,7 @@ Although (\xi_1) is not a direct health indicator, its evolution may serve as an
 4. 实时性是在 CPU/MATLAB 环境下验证，嵌入式部署还需进一步验证；
 5. 需要更多 PEMFC 单体和更复杂工况验证泛化性。
 
-十、8. Conclusion 结论
+七. Conclusion 结论
 结论写什么
 1. 提出一种 TS-LSTM + 机理模型 + UKF/AUKF 的 PEMFC 在线联合估计框架；
 2. 实现端电压重构和 (\lambda,\xi_1) 在线估计；
