@@ -481,7 +481,7 @@ PARAM_TEMPLATE_SYS6 = {
 # 当前系统的输出目录
 # ---------------------------------------------------------
 # 建议每个 sys 单独一个文件夹，避免不同系统结果互相覆盖
-FILE_PATH = r"F:\BMS\field_data\field_data\data_sys_28.csv"
+FILE_PATH = r"D:\BMS\field_data\field_data\data_sys_28.csv"
 OUTPUT_DIR = r"edge_outputs/sys_28"
 
 # DQ 过滤窗口输出
